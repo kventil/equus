@@ -2,14 +2,15 @@
 
 require 'net/http'                 
 require 'socksify'
-require 'nokogiri'  
-
 require 'logger'
+require 'asciify' 
+
 
 $LOG = Logger.new(STDOUT)
 
 TCPSocket::socks_server = "127.0.0.1"
 TCPSocket::socks_port = 8080    
+
 
 #tests if "Recognized as" to determine if an institunional login exists
 def loggedIn?
@@ -35,7 +36,10 @@ def extractChapterLinks(content)
 
   content.scan(/href="(.+?.pdf)"/).each{
     |link|            
-    chapters.push(link[0]) if link[0].include? "fulltext.pdf"
+    if link[0].include? "fulltext.pdf"
+      chapters.push(link[0]) 
+      $LOG.debug(link[0])
+    end
   }
 
   #look for next page
@@ -46,24 +50,70 @@ def extractChapterLinks(content)
     $LOG.info("Found next Page")
     return chapters + extractChapterLinks(fetch(match[1].gsub("&amp;", "&")))
   end
-end   
+end                         
 
-################ MAIN #############
+      
 
-puts "Logged in: #{loggedIn?}"
+def fetchBookCover(contentlink,chapters)  
+  content = fetch(contentlink)
+  
+  sublink = contentlink.match(/\/content\/[a-z0-9\-]+\//)[0]
+  $LOG.debug(sublink)
+    
+  if content.include?("front-matter.pdf")           
+    $LOG.debug("Found front-matter.pdf")
+    chapters.insert(0,sublink + "front-matter.pdf") 
+  end                                 
+  
+  if content.include?("back-matter.pdf")
+    $LOG.debug("Found back-matter.pdf")
+    chapters.push(sublink + "back-matter.pdf")  
+  end
+  
 
-chapters = []        
+end
 
-content = fetch("/content/kq0323/?p=cf5010e25e1e4d66885de488f2737e4c&pi=17")
 
-match = content.match(/<h2 class="MPReader_Profiles_SpringerLink_Content_PrimitiveHeadingControlName">([^<]+)<\/h2>/)
-booktitle = $1.strip 
+
+contentlink = "/content/m23151/?p=a0a1ea6390424b73854eabb657ad1fcd&pi=29"
+content = fetch(contentlink)
+
+$LOG.debug("Fetched #{content.size} bytes")
+
+booktitle = content.match(/<h2 class="MPReader_Profiles_SpringerLink_Content_PrimitiveHeadingControlName">([^<]+)<\/h2>/)[1].strip 
+outputtitle = (booktitle.gsub(" ","_") + ".pdf").asciify
+
+$LOG.info("Booktitle: #{booktitle}")
+$LOG.info("Savefile: #{outputtitle}")
 
 chapters = extractChapterLinks(content) 
 
-puts "Fetched #{chapters.size} chapters"
+$LOG.info("Chapters: #{chapters.size}")
 
-puts booktitle 
+
+fetchBookCover(contentlink,chapters)
+counter = 1
+      
+
+fileList = []
+chapters.each{
+  |chapter|
+  File.open("#{counter}.pdf","wb"){
+    |file|
+    file.write(fetch(chapter))
+    fileList.push("#{counter}.pdf")
+  }          
+  counter += 1
+} 
+
+
+
+puts system("pdftk #{fileList.join(" ")} cat output #{outputtitle}")
+
+
+system("rm #{fileList.join(" ")}")
+
+
 
 
 
