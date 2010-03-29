@@ -3,13 +3,10 @@
 require 'net/http'                 
 require 'socksify'
 require 'logger'
-require 'asciify'        
+require 'asciify'         
 
 
 $LOG = Logger.new(STDOUT)
-
-
-
 
 #tests if "Recognized as" to determine if an institunional login exists
 def loggedIn?
@@ -66,9 +63,65 @@ def fetchBookCover(contentlink,chapters)
   end
 end
 
-    
 
-useSocks = true 
+
+def getBook(inputLink)
+  
+  $LOG.debug("inputLink: #{inputLink}")
+  contentlink = inputLink.match(/https?:\/\/(www\.)?springerlink.(com|de)(\/content\/[a-z0-9\-]+\/?(\?[^\/]*)?$)/)[3]
+  $LOG.debug("contentlink: #{contentlink}")
+
+  raise Exception.new("Not logged in!") if !loggedIn?  
+
+  #TODO test if book is aviable
+  
+  content = fetch(contentlink)
+
+  $LOG.debug("Fetched #{content.size} bytes")
+
+  booktitle = content.match(/<h2 class="MPReader_Profiles_SpringerLink_Content_PrimitiveHeadingControlName">([^<]+)<\/h2>/)[1].strip 
+  outputtitle = (booktitle.gsub(" ","_") + ".pdf").asciify
+
+  $LOG.info("Booktitle: #{booktitle}")
+  $LOG.info("Savefile: #{outputtitle}")
+
+  chapters = extractChapterLinks(content) 
+
+  $LOG.info("Chapters: #{chapters.size}")
+
+
+  fetchBookCover(contentlink,chapters)
+  counter = 1
+
+
+  fileList = []
+  chapters.each{
+    |chapter|                              
+    File.open("#{counter}.pdf","wb"){
+      |file|
+      file.write(fetch(chapter))
+      fileList.push("#{counter}.pdf")
+    }          
+    $LOG.debug("Fetched #{counter}/#{chapters.size}")
+    counter += 1
+  } 
+
+
+
+  if !system("pdftk #{fileList.join(" ")} cat output #{outputtitle} flatten compress")
+    $LOG.error("pdftk failed")
+  else
+    puts "All parts merged to #{outputtitle}" 
+  end
+
+  if !system("rm #{fileList.join(" ")}")
+    $LOG.error("failed deleting temporary files")
+  end                                                
+  
+  return outputtitle
+end
+
+useSocks = false 
 socks_server = "127.0.0.1"
 socks_port = "8080"
 
@@ -79,64 +132,4 @@ end
 
 
 
-#inputLink = "http://springerlink.com/content/m23151/?p=a0a1ea6390424b73854eabb657ad1fcd&pi=29"
-contentlink = "/content/m23151/?p=a0a1ea6390424b73854eabb657ad1fcd&pi=29"
-
-if !loggedIn?
-  $LOG.error("Not logged in")
-  exit
-end
-
-content = fetch(contentlink)
-
-$LOG.debug("Fetched #{content.size} bytes")
-
-booktitle = content.match(/<h2 class="MPReader_Profiles_SpringerLink_Content_PrimitiveHeadingControlName">([^<]+)<\/h2>/)[1].strip 
-outputtitle = (booktitle.gsub(" ","_") + ".pdf").asciify
-
-$LOG.info("Booktitle: #{booktitle}")
-$LOG.info("Savefile: #{outputtitle}")
-
-chapters = extractChapterLinks(content) 
-
-$LOG.info("Chapters: #{chapters.size}")
-
-
-fetchBookCover(contentlink,chapters)
-counter = 1
-
-
-fileList = []
-chapters.each{
-  |chapter|                              
-  File.open("#{counter}.pdf","wb"){
-    |file|
-    file.write(fetch(chapter))
-    fileList.push("#{counter}.pdf")
-  }          
-  counter += 1
-} 
-
-
-
-if !system("pdftk #{fileList.join(" ")} cat output #{outputtitle}")
-  $LOG.error("pdftk failed")
-else
-  puts "All parts merged to #{outputtitle}" 
-end
-
-if !system("rm #{fileList.join(" ")}")
-  $LOG.error("failed deleting temporary files")
-end
-
-
-
-
-
-
-
-
-
-
-
-
+getBook "http://springerlink.com/content/m23151/?p=a0a1ea6390424b73854eabb657ad1fcd&pi=29"
