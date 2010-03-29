@@ -1,5 +1,6 @@
 #!/opt/local/bin/ruby1.9
 
+require 'rubygems'
 require 'net/http'                 
 require 'socksify'
 require 'logger'
