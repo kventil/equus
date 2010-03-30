@@ -1,10 +1,11 @@
 #!/opt/local/bin/ruby1.9
 
-require 'rubygems'
 require 'net/http'                 
 require 'socksify'
 require 'logger'
-require 'asciify'         
+require 'asciify' 
+require 'tempfile'        
+require 'mechanize'
 
 
 $LOG = Logger.new(STDOUT)
@@ -17,10 +18,12 @@ def loggedIn?
 end
 
 def fetch(content)
-  resp = nil
-  Net::HTTP.start("springerlink.com") { |http|
-    resp = http.get(content) 
-  }                          
+  resp = nil      
+  agent = Mechanize.new { |a| a.log = Logger.new(STDOUT)}
+  resp = agent.get(:url => "http://springerlink.com" + content)
+  # Net::HTTP.start("springerlink.com") { |http|
+  #   resp = http.get(content) 
+  # }                          
   raise Exception.new(resp.message + ":" + content) if resp.code != "200"                      
   return resp.body  
 end 
@@ -67,7 +70,7 @@ end
 
 
 def getBook(inputLink)
-  
+
   $LOG.debug("inputLink: #{inputLink}")
   contentlink = inputLink.match(/https?:\/\/(www\.)?springerlink.(com|de)(\/content\/[a-z0-9\-]+\/?(\?[^\/]*)?$)/)[3]
   $LOG.debug("contentlink: #{contentlink}")
@@ -75,7 +78,7 @@ def getBook(inputLink)
   raise Exception.new("Not logged in!") if !loggedIn?  
 
   #TODO test if book is aviable
-  
+
   content = fetch(contentlink)
 
   $LOG.debug("Fetched #{content.size} bytes")
@@ -97,15 +100,16 @@ def getBook(inputLink)
 
   fileList = []
   chapters.each{
-    |chapter|                              
-    File.open("#{counter}.pdf","wb"){
-      |file|
-      file.write(fetch(chapter))
-      fileList.push("#{counter}.pdf")
-    }          
+    |chapter|  
+    tmp = Tempfile.new("#{counter}__")                            
+    tmp.write(fetch(chapter))
+    tmp.flush
+    fileList.push(tmp)
     $LOG.debug("Fetched #{counter}/#{chapters.size}")
     counter += 1
-  } 
+  }  
+
+  puts fileList
 
 
 
@@ -115,15 +119,15 @@ def getBook(inputLink)
     puts "All parts merged to #{outputtitle}" 
   end
 
-  if !system("rm #{fileList.join(" ")}")
-    $LOG.error("failed deleting temporary files")
-  end                                                
-  
+  # if !system("rm #{fileList.join(" ")}")
+  #     $LOG.error("failed deleting temporary files")
+  #   end                                                
+
   return outputtitle
 end
 
-useSocks = false 
-socks_server = "127.0.0.1"
+useSocks = true 
+socks_server = "roterhut.de"
 socks_port = "8080"
 
 if useSocks
@@ -133,4 +137,4 @@ end
 
 
 
-getBook "http://springerlink.com/content/m23151/?p=a0a1ea6390424b73854eabb657ad1fcd&pi=29"
+getBook "http://springerlink.com/content/q42078/?p=2623b5fbd6a042629bf4c5675c95124a&pi=87"
