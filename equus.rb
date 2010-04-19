@@ -9,6 +9,7 @@ require 'mechanize'
 
 
 $LOG = Logger.new(STDOUT)
+@AGENT = Mechanize.new
 
 #tests if "Recognized as" to determine if an institunional login exists
 def loggedIn?
@@ -19,8 +20,7 @@ end
 
 def fetch(content)
   resp = nil      
-  agent = Mechanize.new { |a| a.log = Logger.new(STDOUT)}
-  resp = agent.get(:url => "http://springerlink.com" + content)
+  resp = @AGENT.get(:url => "http://www.springerlink.com" + content)
   # Net::HTTP.start("springerlink.com") { |http|
   #   resp = http.get(content) 
   # }                          
@@ -102,6 +102,7 @@ def getBook(inputLink)
   chapters.each{
     |chapter|  
     tmp = Tempfile.new("#{counter}__")                            
+    tmp.sync = true
     tmp.write(fetch(chapter))
     tmp.flush
     fileList.push(tmp)
@@ -109,11 +110,16 @@ def getBook(inputLink)
     counter += 1
   }  
 
-  puts fileList
+  #puts fileList
 
+   
+  fileNameList = []
+  fileList.each{
+    |a|
+    fileNameList.push(a.path)
+  }
 
-
-  if !system("pdftk #{fileList.join(" ")} cat output #{outputtitle} flatten compress")
+  if !system("pdftk #{fileNameList.join(" ")} cat output #{outputtitle} flatten compress")
     $LOG.error("pdftk failed")
   else
     puts "All parts merged to #{outputtitle}" 
@@ -126,15 +132,14 @@ def getBook(inputLink)
   return outputtitle
 end
 
-useSocks = true 
-socks_server = "roterhut.de"
+useSocks = false
+socks_server = "127.0.0.1"
 socks_port = "8080"
 
 if useSocks
   TCPSocket::socks_server = socks_server
   TCPSocket::socks_port = socks_port
 end
+                                                                                           
 
-
-
-getBook "http://springerlink.com/content/q42078/?p=2623b5fbd6a042629bf4c5675c95124a&pi=87"
+getBook "http://springerlink.com/content/q783g7/?p=9b6469a70f7f404894725fec4b5275d1&pi=0"
