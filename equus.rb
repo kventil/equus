@@ -5,7 +5,11 @@ require 'socksify'
 require 'logger'
 require 'asciify' 
 require 'tempfile'        
-require 'mechanize'
+require 'mechanize'        
+require 'base64'                                        
+
+
+  
 
 
 $LOG = Logger.new(STDOUT)
@@ -104,7 +108,13 @@ def getBook(inputLink)
     tmp = Tempfile.new("#{counter}__")                            
     tmp.sync = true
     tmp.write(fetch(chapter))
-    tmp.flush
+    tmp.flush          
+    
+    #test if metadata say it's an pdf
+    #header = IO.read(tmp,10)
+    #raise Exception.new("Downloaded chapter (#{chapter}) is not a pdf-file: #{header}") if header != "%PDF-1.3 %"
+    #puts header# header[/#{Base64.decode64('JVBERi0xLjMKJQ')}/]
+    
     fileList.push(tmp)
     $LOG.debug("Fetched #{counter}/#{chapters.size}")
     counter += 1
@@ -132,7 +142,7 @@ def getBook(inputLink)
   return outputtitle
 end
 
-useSocks = false
+useSocks = true
 socks_server = "127.0.0.1"
 socks_port = "8080"
 
@@ -142,4 +152,6 @@ if useSocks
 end
                                                                                            
 
-getBook "http://springerlink.com/content/q783g7/?p=9b6469a70f7f404894725fec4b5275d1&pi=0"
+#getBook "http://springerlink.com/content/q783g7/?p=9b6469a70f7f404894725fec4b5275d1&pi=0"
+#getBook "http://springerlink.com/content/qg4011/?p=c4bd67093f894933b0a25f5dfd1d54e0&pi=0"
+getBook "http://www.springerlink.com/content/jl2474/?p=fe6e7a781d3643889cc4f9bbee8ab1df&pi=0"
